@@ -1,0 +1,59 @@
+---
+title: "Null_Data_Challenge"
+author: "Roger Yuan"
+date: "9/3/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Import Datasets
+```{r}
+library(readr)
+ride_ids <- read_csv("~/Desktop/Lyft Data Challenge/ride_ids.csv")
+driver_ids <- read_csv("~/Desktop/Lyft Data Challenge/driver_ids.csv")
+ride_timestamps <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_timestamps.csv")
+```
+
+##Revenue for Each Driver
+```{r}
+library(tidyverse)
+ride_ids$revenue <- round((2.2 + 2.7 + 0.39 * ride_ids$ride_duration/60 + 0.91 * 0.000621371 * ride_ids$ride_distance) * (1 + ride_ids$ride_prime_time/100), digits = 2)
+
+
+ride_ids %>% 
+  group_by(driver_id) %>% 
+  summarise(total_rev = sum(revenue)) %>% 
+  arrange(desc(total_rev))
+```
+
+##Driver's Lifetime
+```{r}
+rides <- 
+  ride_timestamps %>% 
+  group_by(ride_id) %>% 
+  summarise(latest_time = max(timestamp))
+
+ride_ids2 <- inner_join(x = ride_ids, y = rides, by = "ride_id")
+driver_times <- 
+  ride_ids2 %>% 
+  group_by(driver_id) %>% 
+  summarise(latest_time = max(latest_time))
+
+driver_id_idx <- 
+  apply(driver_times, 1, function(x){
+  idx <- which(is.element(driver_ids$driver_id, x[[1]]))
+  idx
+}) %>% unlist()
+
+driver_ids_new <- driver_ids[driver_id_idx, ]
+driver_times <- driver_times[1:length(driver_id_idx),]
+
+driver_ids_new$lifetime <- driver_times$latest_time - driver_ids_new$driver_onboard_date
+driver_ids_new$lifetime <- as.numeric(driver_ids_new$lifetime/24)
+
+driver_ids_new %>% arrange(desc(lifetime))
+```
+
