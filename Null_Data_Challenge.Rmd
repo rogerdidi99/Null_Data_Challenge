@@ -12,9 +12,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ##Import Datasets
 ```{r}
 library(readr)
+
+# Roger
 ride_ids <- read_csv("~/Desktop/Lyft Data Challenge/ride_ids.csv")
 driver_ids <- read_csv("~/Desktop/Lyft Data Challenge/driver_ids.csv")
 ride_timestamps <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_timestamps.csv")
+```
+
+```{r}
+library(readr)
+
+# Edwin
+ride_ids <- read_csv("C:/Users/Edwin/Downloads/ride_ids.csv")
+driver_ids <- read_csv("C:/Users/Edwin/Downloads/driver_ids.csv")
+ride_timestamps <- read_csv("C:/Users/Edwin/Downloads/ride_timestamps.csv")
 ```
 
 ##Revenue for Each Driver
@@ -55,5 +66,60 @@ driver_ids_new$lifetime <- driver_times$latest_time - driver_ids_new$driver_onbo
 driver_ids_new$lifetime <- as.numeric(driver_ids_new$lifetime/24)
 
 driver_ids_new %>% arrange(desc(lifetime))
+```
+
+#investigate timestamps of outlier drivers
+```{r}
+# driver id and revenue
+driver_rev <- ride_ids %>% 
+              group_by(driver_id) %>% 
+              summarise(total_rev = sum(revenue)) %>% 
+              arrange(desc(total_rev))
+
+
+ride_timestamps <- inner_join(ride_ids[,c('driver_id', 'ride_id')], ride_timestamps, by='ride_id')
+
+timediff <- function(time1, time2) {
+  diff = difftime(time1, time2)
+  if (units(diff) == "secs") {
+    return(as.numeric(diff) / 60)
+  }
+  if (units(diff) == "hours") {
+    return(as.numeric(diff) * 60)
+  }
+  return(as.numeric(diff))
+}
+
+# subtract dropped off from requested time
+ride_summary <- aggregate(ride_timestamps$timestamp, by=list(ride_id=ride_timestamps$ride_id), FUN=function(x) 
+                            timediff(range(x)[2], range(x)[1]))
+
+#only pickedup and droppedoff
+temp2 <- ride_timestamps[which(ride_timestamps$event == 'picked_up_at' | ride_timestamps$event == 'dropped_off_at'),]
+
+travel_times <- aggregate(temp2$timestamp, by=list(ride_id=temp2$ride_id), 
+                                  FUN=function(x) timediff(range(x)[2], range(x)[1]))
+
+# get times with no revenue
+ride_summary$norider <- (ride_summary$x - travel_times$x)
+
+colnames(ride_summary)[2] <- 'totaltime'
+#ride_summary$totaltime <- as.numeric(ride_summary$totaltime)
+ride_summary <- inner_join(ride_ids[,c('driver_id', 'ride_id')], ride_summary, by='ride_id')
+ride_summary$percentnorev <- ride_summary$norider / ride_summary$totaltime
+```
+
+
+```{r}
+# driver ids with outlier revenue
+driverid_out <- driver_rev$driver_id[which(driver_rev$total_rev %in% boxplot(driver_rev$total_rev)$out)]
+
+ride_summary[which(ride_summary$driver_id %in% driverid_out),]
+
+meannorev <- aggregate(ride_summary$percentnorev, by=list(driver_id=ride_summary$driver_id), FUN=mean)
+
+# ride timestamps with outlier driver revenue
+time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driver_out),]
+
 ```
 
