@@ -28,6 +28,44 @@ driver_ids <- read_csv("C:/Users/Edwin/Downloads/driver_ids.csv")
 ride_timestamps <- read_csv("C:/Users/Edwin/Downloads/ride_timestamps.csv")
 ```
 
+
+# tag rides with time of day, sum up all prime time bonuses for drivers
+```{r}
+# switch timezone
+attributes(ride_timestamps$timestamp)$tzone <- "America/Los_Angeles"  
+
+# morning rush hour 5-10
+# evening rush hour 3-7
+timeofday <- function(datetime) {
+  num = as.numeric(strftime(datetime, format="%H"))
+  if ((num < 5) | (num >= 19)) return("night")
+  if ((5 <= num) & (num < 10)) return("morning rush")
+  if ((10 <= num) & (num < 12)) return("morning")
+  if ((12 <= num) & (num < 15)) return("afternoon")
+  if ((15 <= num) & (num < 19)) return("evening rush")
+  else return(NULL)
+}
+
+# assign time of day for ride based on accepted_at timestamp
+acceptedat <- ride_timestamps[which(ride_timestamps$event == 'accepted_at'),]
+acceptedat$dayinfo <- ''
+
+# long function, has to run row by row
+for (i in 1:(length(acceptedat$ride_id))) {
+  acceptedat$dayinfo[i] <- timeofday(acceptedat$timestamp[i])
+}
+
+alldata <- left_join(ride_ids, acceptedat[c("ride_id", "dayinfo")], by="ride_id")
+
+# find total prime time bonus for each driver
+sumprime <- aggregate(alldata$ride_prime_time, by=list(driver_id=alldata$driver_id), FUN=sum)
+colnames(sumprime) <- c("driver_id", "totalprimetime")
+
+# join totalprimetime bonus with driver_id table
+driver_ids <- inner_join(driver_ids, sumprime, by="driver_id")
+```
+
+
 ##Revenue for Each Driver
 ```{r}
 library(tidyverse)
@@ -117,6 +155,7 @@ driverid_out <- driver_rev$driver_id[which(driver_rev$total_rev %in% boxplot(dri
 ride_summary[which(ride_summary$driver_id %in% driverid_out),]
 
 meannorev <- aggregate(ride_summary$percentnorev, by=list(driver_id=ride_summary$driver_id), FUN=mean)
+head(meannorev[order(-meannorev$x),])
 
 # ride timestamps with outlier driver revenue
 time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driver_out),]
