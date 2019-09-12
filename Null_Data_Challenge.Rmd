@@ -104,6 +104,8 @@ driver_rev <- ride_ids %>%
               group_by(driver_id) %>% 
               summarise(total_rev = sum(revenue)) %>% 
               arrange(desc(total_rev))
+alldata <- inner_join(alldata, driver_rev, by="driver_id")
+driver_ids <- inner_join(driver_ids, driver_rev, by="driver_id")
 ride_timestamps <- inner_join(ride_ids[,c('driver_id', 'ride_id')], ride_timestamps, by='ride_id')
 
 timediff <- function(time1, time2) {
