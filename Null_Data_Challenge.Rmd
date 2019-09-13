@@ -251,4 +251,16 @@ plot(as.numeric(driver_lifetime$life_time[-c(425)]), driver_lifetime$total_rev[-
 plot(as.numeric(driver_lifetime$totalprimetime[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Total Prime Time", xlab="Prime Time", ylab="Total Revenue in Dollars")
 ```
 
+# Another factor that contributes to a driver's lifetime value is if they are full time or part time. Of course, a full time driver not only brings in more revenue to the company but also serve as a consistent source of it, which is more valuable than someone who is inconsistent. One way to measure this with the data given is to calculate the time between consecutive rides for each driver, and using these gaps to gauge how often a driver works. Consistently small time gaps between rides should indicate a full time driver, while larger gaps often indicate a part time driver. 
+
+# something visual here:
+```{r}
+length(unique(bruhh2$driver_id[which(bruhh2$difference > 2880)]))
+```
+
+
+# Yet another factor that contributes to a driver's value is the time of day they work. This is somewhat related to prime time bonuses, but take into account a driver's routine or schedule rather than events or unique circumstances. To get this information we took the time each ride was requested and labelled it with a string describing the time it took place(morning, afternoon, night, morning rush hour, evening rush hour). We hypothesize that drivers who work during rush hour and night shifts not only bring in more revenue but also add to their consistency as resources to the company.
+```{r}
+
+```
 
