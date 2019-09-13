@@ -10,16 +10,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ##Import Datasets
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(readr)
+library(tidyverse)
 # Roger
 ride_ids <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_ids.csv")
 driver_ids <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/driver_ids.csv")
 ride_timestamps <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_timestamps.csv")
 ```
 
-```{r}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(readr)
+library(tidyverse)
 # Edwin
 ride_ids <- read_csv("C:/Users/Edwin/Downloads/ride_ids.csv")
 driver_ids <- read_csv("C:/Users/Edwin/Downloads/driver_ids.csv")
@@ -27,8 +29,7 @@ ride_timestamps <- read_csv("C:/Users/Edwin/Downloads/ride_timestamps.csv")
 ```
 
 ##Revenue for Each Driver
-```{r}
-library(tidyverse)
+```{r echo=FALSE}
 ride_ids$revenue <- round(1.75 + (2 + 0.22 * ride_ids$ride_duration/60 + 1.15 * 0.000621371 * ride_ids$ride_distance) * (1 + ride_ids$ride_prime_time/100), digits = 2)
 
 ride_ids$revenue[ride_ids$revenue < 5] <- 5
@@ -41,7 +42,7 @@ ride_ids %>%
 ```
 
 # tag rides with time of day, sum up all prime time bonuses for drivers
-```{r}
+```{r echo=FALSE}
 # switch timezone
 attributes(ride_timestamps$timestamp)$tzone <- "America/Los_Angeles"
 
@@ -60,27 +61,32 @@ timeofday <- function(datetime) {
 # assign time of day for ride based on accepted_at timestamp
 acceptedat <- ride_timestamps[which(ride_timestamps$event == 'accepted_at'),]
 
-
 # long function, has to run row by row
 acceptedat$dayinfo <- apply(acceptedat, 1, function(x) {timeofday(x[3])})
 
-# for (i in 1:(length(acceptedat$ride_id))) {
-#   acceptedat$dayinfo[i] <- timeofday(acceptedat$timestamp[i])
-# }
+for (i in 1:(length(acceptedat$ride_id))) {
+    acceptedat$dayinfo[i] <- timeofday(acceptedat$timestamp[i])
+}
 
-alldata <- left_join(ride_ids, acceptedat[c("ride_id", "dayinfo")], by="ride_id")
+ride_ids <- left_join(ride_ids, acceptedat[c("ride_id", "dayinfo")], by="ride_id")
 
 # find total prime time bonus for each driver
-sumprime <- aggregate(alldata$ride_prime_time, by=list(driver_id=alldata$driver_id), FUN=sum)
+sumprime <- aggregate(ride_ids$ride_prime_time, by=list(driver_id=ride_ids$driver_id), FUN=sum)
 colnames(sumprime) <- c("driver_id", "totalprimetime")
 
 # join totalprimetime bonus with driver_id table
 driver_ids <- inner_join(driver_ids, sumprime, by="driver_id")
+
+temp <- ride_ids %>% 
+  group_by(driver_id) %>% 
+  summarise(total_rev = sum(revenue)) %>% 
+  arrange(desc(total_rev))
+driver_ids <- inner_join(driver_ids, temp, by="driver_id")
+
 ```
 
-
 ##Driver's Lifetime
-```{r}
+```{r echo=FALSE}
 rides <- 
   ride_timestamps %>% 
   group_by(ride_id) %>% 
@@ -100,7 +106,7 @@ mean(driver_lifetime$life_time, na.rm = T)
 ```
 
 ##Time Between Rides
-```{r}
+```{r echo=FALSE}
 Driver_timestamps <- left_join(x = ride_timestamps, y = ride_ids, by = "ride_id")
 bruhh <- Driver_timestamps %>% 
   filter(event == "requested_at") %>% 
@@ -126,7 +132,7 @@ bruhh2
 
 
 ##Big Inner Join
-```{r}
+```{r echo=FALSE}
 all_rides <- inner_join(x = ride_ids, y = driver_ids, by = "driver_id")
 all_rides <- inner_join(x = all_rides, y = ride_timestamps, by = c("ride_id"))
 
@@ -141,8 +147,8 @@ Driver_summary
 ```
 
 
-#investigate timestamps of outlier drivers
-```{r}
+# investigate timestamps of outlier drivers
+```{r echo=FALSE}
 # driver id and revenue
 driver_rev <- ride_ids %>% 
   group_by(driver_id) %>% 
@@ -179,7 +185,7 @@ ride_summary$percentnorev <- ride_summary$norider / ride_summary$totaltime
 ```
 
 
-```{r}
+```{r echo=FALSE}
 # driver ids with outlier revenue
 driverid_out <- driver_rev$driver_id[which(driver_rev$total_rev %in% boxplot(driver_rev$total_rev)$out)]
 ride_summary[which(ride_summary$driver_id %in% driverid_out),]
@@ -190,7 +196,7 @@ time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driver_out),]
 
 
 ##OLS Regression Analysis
-```{r}
+```{r echo=FALSE}
 library(glmnet)
 which(is.na(Driver_summary), arr.ind=TRUE)
 Driver_summary[425, 3] <- median(Driver_summary[[3]], na.rm = T)
@@ -217,3 +223,32 @@ lassofit = glmnet(X, Y)
 as.matrix(t(coef(lassofit, s = 0.5))) 
 
 ```
+
+
+```{r}
+mean(ride_ids$revenue[which(ride_ids$dayinfo=='night')])
+mean(driver_lifetime$life_time, na.rm=T)
+lifetimesummary <- boxplot.stats(as.numeric(driver_lifetime$life_time))
+lifetimesummary
+```
+
+# The average projected lifetime of a driver is approximately 55.75 days, or a little under 2 months based on the data given. Furthermore, the minimum lifetime is 1.7 days, the first quartile is 43 days, the median is 58 days, the third quartile is 73 days, and the maximum is 91 days. The distribution of lifetimes is only slightly left skewed. We calculated the lifetime of a driver by subtracting their onboard date from their last recorded ride date. However, because the data was only representative of a 3 month period the projected lifetime in this dataset is likely shorter than the true projected lifetime of a Lyft driver.
+```{r message=FALSE, warning=FALSE}
+boxplot(as.numeric(driver_lifetime$life_time), main="Driver Lifetime in Days", ylab="Lifetime")
+```
+
+
+# As expected, the lifetime of a driver has no relation to the total revenue of a driver. The correlation between the two is 0.52, which can be seen by plotting the lifetime vs the total revenue. This makes sense, as a part-time driver working the same amount of time as a full-time driver will make much less. Thus, we can rule out lifetime as a factor in a driver's lifetime value.
+
+# Instead of a driver's lifetime, we hypothesized that a driver who works for Lyft during times of high demand, such as special events or rush hour, would be of much value to the company. Not only would they bring in more revenue due to prime time bonuses that are often in effect, but they bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. 
+
+# To measure a driver's tendency to drive during times of high demand, we summed up all the prime time bonuses for each driver, as prime time bonuses reflect the demand for rides during the time a driver worked. Plotting the total prime time vs the total revenue, we can see a linear relationship between the two, whch is supported by a correlation of 0.916. 
+```{r message=FALSE, warning=FALSE, include=FALSE}
+cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$life_time[-c(425)]))
+cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$totalprimetime[-c(425)]))
+par(mfrow=c(1,2))
+plot(as.numeric(driver_lifetime$life_time[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Lifetime", xlab="Lifetime in Days", ylab="Total Revenue in Dollars")
+plot(as.numeric(driver_lifetime$totalprimetime[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Total Prime Time", xlab="Prime Time", ylab="Total Revenue in Dollars")
+```
+
+
