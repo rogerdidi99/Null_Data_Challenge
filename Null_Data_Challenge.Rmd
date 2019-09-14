@@ -44,7 +44,7 @@ ride_ids %>%
 # tag rides with time of day, sum up all prime time bonuses for drivers
 ```{r echo=FALSE}
 # switch timezone
-attributes(ride_timestamps$timestamp)$tzone <- "America/Los_Angeles"
+#attributes(ride_timestamps$timestamp)$tzone <- "America/Los_Angeles"
 
 # morning rush hour 5-10
 # evening rush hour 3-7
@@ -197,7 +197,9 @@ ride_summary[which(ride_summary$driver_id %in% driverid_out),]
 meannorev <- aggregate(ride_summary$percentnorev, by=list(driver_id=ride_summary$driver_id), FUN=mean)
 
 # ride timestamps with outlier driver revenue
-time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driver_out),]
+time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driverid_out),]
+sumprime[which(sumprime$driver_id %in% driverid_out),]
+head(sumprime[order(-sumprime$totalprimetime),], 8)
 ```
 
 
@@ -239,6 +241,21 @@ lifetimesummary <- boxplot.stats(as.numeric(driver_lifetime$life_time))
 lifetimesummary
 ```
 
+# A driver's lifetime value should be calculated using their projected lifetime revenue, average prime time bonus per ride, and proportion of rides driven during rush hour or late nights. After normalizing each component we multiply them together to get a lifetime value.
+
+# Revenue is often a good indicator of an employee's worth to a company. At the end of the day, an employee's contribution to their company's bottom line determines how important they are to the company, at least financially. To determine a driver's financial value, we found their average daily revenue by totaling the revenue of their rides during their lifetime and dividing by their lifetime before multiplying by the average driver lifetime. This revenue calculation accounts for prime time bonuses as well. 
+
+# However, while revenue is important, it is not all a driver has to offer to Lyft. We believe that a driver who works for Lyft during times of high demand, such as special events, would be of much value to the company. Not only would they bring in more revenue due to prime time bonuses that are often in effect, but they bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. By allowing Lyft to provide its services to more riders during espcially busy and often crucial times, these drivers have increased worth towards Lyft that cannot be described by revenue alone.
+
+# In order to represent this, we summed up all the prime time bonuses for each driver as an approximate measure of how often they drive during high demands. Larger total prime time bonuses indicate a tendency to work during busy times and lower totals indicate otherwise. We once again normalize this factor.
+
+# One more factor we want to consider is how often a driver works during rush hours. This is somewhat similar to the previously mentioned total prime time, but the number of rides during rush hour or late nights represents a more consistent work schedule. Because riders who hail rides during these times often need to, often due to work, we believe Lyft drivers who work within these hours are not only fulfilling demand but also building customer loyalty. Because many regularly need rides during these times, they will tend to stick with a ride hailing company, and drivers who help saturate this market with Lyft options not only capitalize on revenue but also aid in creating repeat customers for Lyft. Due to their contributions towards brand marketing and loyalty, these drivers are also very valuable to Lyft.
+
+# To get this information we labelled each ride with a time of day depending on when the ride was requested. We then summed up the number of rides that occured during rush hours (5-10am and 3-7pm) and once again normalized it.
+
+
+# Driver Projected Lifetime
+
 # The average projected lifetime of a driver is approximately 55.75 days, or a little under 2 months based on the data given. Furthermore, the minimum lifetime is 1.7 days, the first quartile is 43 days, the median is 58 days, the third quartile is 73 days, and the maximum is 91 days. The distribution of lifetimes is only slightly left skewed. We calculated the lifetime of a driver by subtracting their onboard date from their last recorded ride date. However, because the data was only representative of a 3 month period the projected lifetime in this dataset is likely shorter than the true projected lifetime of a Lyft driver.
 ```{r message=FALSE, warning=FALSE}
 boxplot(as.numeric(driver_lifetime$life_time), main="Driver Lifetime in Days", ylab="Lifetime")
@@ -247,26 +264,10 @@ boxplot(as.numeric(driver_lifetime$life_time), main="Driver Lifetime in Days", y
 
 # As expected, the lifetime of a driver has no relation to the total revenue of a driver. The correlation between the two is 0.52, which can be seen by plotting the lifetime vs the total revenue. This makes sense, as a part-time driver working the same amount of time as a full-time driver will make much less. Thus, we can rule out lifetime as a factor in a driver's lifetime value.
 
-# Instead of a driver's lifetime, we hypothesized that a driver who works for Lyft during times of high demand, such as special events or rush hour, would be of much value to the company. Not only would they bring in more revenue due to prime time bonuses that are often in effect, but they bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. 
-
-# To measure a driver's tendency to drive during times of high demand, we summed up all the prime time bonuses for each driver, as prime time bonuses reflect the demand for rides during the time a driver worked. Plotting the total prime time vs the total revenue, we can see a linear relationship between the two, whch is supported by a correlation of 0.916. 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
-cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$life_time[-c(425)]))
-cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$totalprimetime[-c(425)]))
-par(mfrow=c(1,2))
-plot(as.numeric(driver_lifetime$life_time[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Lifetime", xlab="Lifetime in Days", ylab="Total Revenue in Dollars")
-plot(as.numeric(driver_lifetime$totalprimetime[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Total Prime Time", xlab="Prime Time", ylab="Total Revenue in Dollars")
-```
-
-# Another factor that contributes to a driver's lifetime value is if they are full time or part time. Of course, a full time driver not only brings in more revenue to the company but also serve as a consistent source of it, which is more valuable than someone who is inconsistent. One way to measure this with the data given is to calculate the time between consecutive rides for each driver, and using these gaps to gauge how often a driver works. Consistently small time gaps between rides should indicate a full time driver, while larger gaps often indicate a part time driver. 
-
-# something visual here:
-```{r}
-length(unique(bruhh2$driver_id[which(bruhh2$difference > 2880)]))
-```
-
-
-# Yet another factor that contributes to a driver's value is the time of day they work. This is somewhat related to prime time bonuses, but take into account a driver's routine or schedule rather than events or unique circumstances. To get this information we took the time each ride was requested and labelled it with a string describing the time it took place(morning, afternoon, night, morning rush hour, evening rush hour). We hypothesize that drivers who work during rush hour and night shifts not only bring in more revenue but also add to their consistency as resources to the company.
-```{r}
-
+#cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$life_time[-c(425)]))
+#cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$totalprimetime[-c(425)]))
+#par(mfrow=c(1,2))
+plot(as.numeric(Driver_summary$life_time), Driver_summary$Total_rev, main="Total Revenue vs Lifetime", xlab="Lifetime in Days", ylab="Total Revenue in Dollars")
+#plot(as.numeric(driver_lifetime$totalprimetime[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Total Prime Time", xlab="Prime Time", ylab="Total Revenue in Dollars")
 ```
