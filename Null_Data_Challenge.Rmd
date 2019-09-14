@@ -2,10 +2,10 @@
 title: "Null_Data_Challenge"
 author: "Roger Yuan"
 date: "9/3/2019"
-output: html_document
+output: pdf_document
 ---
   
-  ```{r setup, include=FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -64,10 +64,6 @@ acceptedat <- ride_timestamps[which(ride_timestamps$event == 'accepted_at'),]
 # long function, has to run row by row
 acceptedat$dayinfo <- apply(acceptedat, 1, function(x) {timeofday(x[3])})
 
-for (i in 1:(length(acceptedat$ride_id))) {
-    acceptedat$dayinfo[i] <- timeofday(acceptedat$timestamp[i])
-}
-
 ride_ids <- left_join(ride_ids, acceptedat[c("ride_id", "dayinfo")], by="ride_id")
 
 # find total prime time bonus for each driver
@@ -75,14 +71,14 @@ sumprime <- aggregate(ride_ids$ride_prime_time, by=list(driver_id=ride_ids$drive
 colnames(sumprime) <- c("driver_id", "totalprimetime")
 
 # join totalprimetime bonus with driver_id table
-driver_ids <- inner_join(driver_ids, sumprime, by="driver_id")
-
-temp <- ride_ids %>% 
-  group_by(driver_id) %>% 
-  summarise(total_rev = sum(revenue)) %>% 
-  arrange(desc(total_rev))
-driver_ids <- inner_join(driver_ids, temp, by="driver_id")
-
+# driver_ids <- inner_join(driver_ids, sumprime, by="driver_id")
+# 
+# temp <- ride_ids %>% 
+#   group_by(driver_id) %>% 
+#   summarise(total_rev = sum(revenue)) %>% 
+#   arrange(desc(total_rev))
+# 
+# driver_ids <- inner_join(driver_ids, temp, by="driver_id")
 ```
 
 ##Driver's Lifetime
@@ -91,6 +87,7 @@ rides <-
   ride_timestamps %>% 
   group_by(ride_id) %>% 
   summarise(latest_time = max(timestamp))
+
 ride_ids2 <- inner_join(x = ride_ids, y = rides, by = "ride_id")
 
 driver_times <- 
@@ -108,25 +105,19 @@ mean(driver_lifetime$life_time, na.rm = T)
 ##Time Between Rides
 ```{r echo=FALSE}
 Driver_timestamps <- left_join(x = ride_timestamps, y = ride_ids, by = "ride_id")
+
 bruhh <- Driver_timestamps %>% 
   filter(event == "requested_at") %>% 
   arrange(timestamp) %>% 
   arrange(driver_id)
 
-timediff <- function(time1, time2) {
-  diff = difftime(time1, time2)
-  if (units(diff) == "secs") {
-    return(as.numeric(diff) / 60)
-  }
-  if (units(diff) == "hours") {
-    return(as.numeric(diff) * 60)
-  }
-  return(as.numeric(diff))
-}
-
 bruhh2 <- bruhh %>% select(driver_id, timestamp)
 bruhh2$difference = c(NA, round(diff(bruhh2$timestamp)/60))
 bruhh2
+
+#K Means Clusters
+Full_time <- kmeans(bruhh2[-1,]$difference, centers = 3)$cluster
+table(Full_time)
 ```
 
 
@@ -134,16 +125,29 @@ bruhh2
 ##Big Inner Join
 ```{r echo=FALSE}
 all_rides <- inner_join(x = ride_ids, y = driver_ids, by = "driver_id")
-all_rides <- inner_join(x = all_rides, y = ride_timestamps, by = c("ride_id"))
 
+# ride_timestamps2 <- inner_join(x = ride_timestamps, y = ride_ids, by = "ride_id")
+# ride_timestamps2 <- ride_timestamps2[1:4]
+
+all_rides <- inner_join(x = all_rides, y = driver_lifetime[-2], by = "driver_id")
+
+
+rush_name <- names(table(all_rides$dayinfo))
 Driver_summary <- 
   all_rides %>% 
   group_by(driver_id) %>% 
-  summarise(Total_Rev = sum(revenue), life_time = max(timestamp - driver_onboard_date), 
+  summarise(Total_Rev = sum(revenue), life_time = max(life_time), 
             Total_distance = sum(ride_distance), Total_duration = sum(ride_duration),
-            Total_prime_time = sum(ride_prime_time))
-Driver_summary$life_time <- as.numeric(Driver_summary$life_time)/24
-Driver_summary
+            Total_prime_time = sum(ride_prime_time), 
+            Rush = rush_name[which.max(table(dayinfo))])
+
+Driver_summary %>% arrange(desc(Total_Rev))
+
+ride_ids %>% 
+  group_by(driver_id) %>% 
+  summarise(total_rev = sum(revenue)) %>% 
+  arrange(desc(total_rev))
+
 ```
 
 
@@ -170,6 +174,7 @@ timediff <- function(time1, time2) {
 
 # subtract dropped off from requested time
 ride_summary <- aggregate(ride_timestamps$timestamp, by=list(ride_id=ride_timestamps$ride_id), FUN=function(x)timediff(range(x)[2], range(x)[1]))
+
 #only pickedup and droppedoff
 temp2 <- ride_timestamps[which(ride_timestamps$event == 'picked_up_at' | ride_timestamps$event == 'dropped_off_at'),]
 travel_times <- aggregate(temp2$timestamp, by=list(ride_id=temp2$ride_id), 
@@ -190,6 +195,7 @@ ride_summary$percentnorev <- ride_summary$norider / ride_summary$totaltime
 driverid_out <- driver_rev$driver_id[which(driver_rev$total_rev %in% boxplot(driver_rev$total_rev)$out)]
 ride_summary[which(ride_summary$driver_id %in% driverid_out),]
 meannorev <- aggregate(ride_summary$percentnorev, by=list(driver_id=ride_summary$driver_id), FUN=mean)
+
 # ride timestamps with outlier driver revenue
 time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driver_out),]
 ```
@@ -216,12 +222,13 @@ driver_lm <- lm(Total_Rev ~ 0 + life_time + Total_distance + Total_duration
 summary(driver_lm)
 
 coef(driver_lm)
+
 length(Y)
 
 lassofit = glmnet(X, Y)
 # we can see lasso will push a paramter value down to 0
-as.matrix(t(coef(lassofit, s = 0.5))) 
 
+as.matrix(t(coef(lassofit, s = 0.5))) 
 ```
 
 
@@ -263,4 +270,3 @@ length(unique(bruhh2$driver_id[which(bruhh2$difference > 2880)]))
 ```{r}
 
 ```
-
