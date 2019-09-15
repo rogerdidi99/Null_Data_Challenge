@@ -111,13 +111,20 @@ bruhh <- Driver_timestamps %>%
   arrange(timestamp) %>% 
   arrange(driver_id)
 
-bruhh2 <- bruhh %>% select(driver_id, timestamp)
-bruhh2$difference = c(NA, round(diff(bruhh2$timestamp)/60))
-bruhh2
+#time in minutes
+time_difference <- bruhh %>% select(driver_id, timestamp)
+time_difference$difference = c(NA, round(diff(bruhh2$timestamp)/60))
+time_difference <- time_difference[time_difference$difference >= 0, ]
+
+#Max time difference in hours
+Full_time <- time_difference %>% group_by(driver_id) %>%
+  summarise(Max_time_diff = round(max(difference)/60))
+Full_time <- na.omit(Full_time)
 
 #K Means Clusters
-Full_time <- kmeans(bruhh2[-1,]$difference, centers = 3)$cluster
-table(Full_time)
+#2 is Full time, 1 is Part time
+Full_time_assign <- kmeans(Full_time$Max_time_diff, centers = 2)$cluster
+Full_time$Assignment <- Full_time_assign
 ```
 
 
@@ -125,6 +132,7 @@ table(Full_time)
 ##Big Inner Join
 ```{r echo=FALSE}
 all_rides <- inner_join(x = ride_ids, y = driver_ids, by = "driver_id")
+all_rides <- inner_join(x = ride_ids, y = Full_time, by = "driver_id")
 
 # ride_timestamps2 <- inner_join(x = ride_timestamps, y = ride_ids, by = "ride_id")
 # ride_timestamps2 <- ride_timestamps2[1:4]
@@ -139,14 +147,10 @@ Driver_summary <-
   summarise(Total_Rev = sum(revenue), life_time = max(life_time), 
             Total_distance = sum(ride_distance), Total_duration = sum(ride_duration),
             Total_prime_time = sum(ride_prime_time), 
-            Rush = rush_name[which.max(table(dayinfo))])
+            Rush = rush_name[which.max(table(dayinfo))],
+            Full_time = max(Assignment))
 
 Driver_summary %>% arrange(desc(Total_Rev))
-
-ride_ids %>% 
-  group_by(driver_id) %>% 
-  summarise(total_rev = sum(revenue)) %>% 
-  arrange(desc(total_rev))
 
 ```
 
@@ -219,9 +223,9 @@ test <- (-train)
 Y_test <- Y[test]
 
 ##OLS
-driver_lm <- lm(Total_Rev ~ 0 + life_time + Total_distance + Total_duration
-                + Total_prime_time, data = Driver_summary[,-1])
+driver_lm <- lm(Total_Rev ~ 0 + life_time + Total_prime_time + Rush + Full_time, data = Driver_summary[,-1])
 summary(driver_lm)
+
 
 coef(driver_lm)
 
@@ -241,15 +245,15 @@ lifetimesummary <- boxplot.stats(as.numeric(driver_lifetime$life_time))
 lifetimesummary
 ```
 
-# A driver's lifetime value should be calculated using their projected lifetime revenue, average prime time bonus per ride, and proportion of rides driven during rush hour or late nights. After normalizing each component we multiply them together to get a lifetime value.
+# A driver's lifetime value would be calculated using a linear combination of projected lifetime revenue, average prime time bonus per ride, and proportion of rides driven during rush hour or late nights. After normalizing each component, we multiply them together to get a lifetime value.
 
-# Revenue is often a good indicator of an employee's worth to a company. At the end of the day, an employee's contribution to their company's bottom line determines how important they are to the company, at least financially. To determine a driver's financial value, we found their average daily revenue by totaling the revenue of their rides during their lifetime and dividing by their lifetime before multiplying by the average driver lifetime. This revenue calculation accounts for prime time bonuses as well. 
+# Revenue is often an important indicator of an employee's worth to a company. At the end of the day, an employee's contribution to their company's bottom line determines how important they are to the company, at least financially. To determine a driver's financial value, we found their average daily revenue by totaling the revenue of their rides during their lifetime and dividing by their lifetime before multiplying by the average driver lifetime. This revenue calculation accounts for prime time bonuses as well. 
 
-# However, while revenue is important, it is not all a driver has to offer to Lyft. We believe that a driver who works for Lyft during times of high demand, such as special events, would be of much value to the company. Not only would they bring in more revenue due to prime time bonuses that are often in effect, but they bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. By allowing Lyft to provide its services to more riders during espcially busy and often crucial times, these drivers have increased worth towards Lyft that cannot be described by revenue alone.
+# However, while revenue is important, it is not all a driver has to offer to Lyft. We believe that a driver who works for Lyft during times of high demand, such as holidays or rush hours, would be of much value to the company. Not only would they bring in more revenue from the prime time bonuses that have taken effect, but they also bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. By allowing Lyft to provide its services to more riders during especially busy, critical times, these drivers have increased worth towards Lyft that cannot be described by revenue alone.
 
 # In order to represent this, we summed up all the prime time bonuses for each driver as an approximate measure of how often they drive during high demands. Larger total prime time bonuses indicate a tendency to work during busy times and lower totals indicate otherwise. We once again normalize this factor.
 
-# One more factor we want to consider is how often a driver works during rush hours. This is somewhat similar to the previously mentioned total prime time, but the number of rides during rush hour or late nights represents a more consistent work schedule. Because riders who hail rides during these times often need to, often due to work, we believe Lyft drivers who work within these hours are not only fulfilling demand but also building customer loyalty. Because many regularly need rides during these times, they will tend to stick with a ride hailing company, and drivers who help saturate this market with Lyft options not only capitalize on revenue but also aid in creating repeat customers for Lyft. Due to their contributions towards brand marketing and loyalty, these drivers are also very valuable to Lyft.
+# Another factor we wish to consider is how often a driver works during rush hours. This is somewhat similar to the previously mentioned total prime time, but the number of rides during rush hour or late nights represents a more consistent work schedule. Because riders who hail rides during these times often need to, often due to work, we believe Lyft drivers who work within these hours are not only fulfilling demand but also building customer loyalty. Because many regularly require rides during these times, they tend to stick with a ride hailing company, and drivers who help saturate this market with Lyft options not only capitalize on revenue but also aid in creating loyal, long-term customers for Lyft. Due to their contributions towards brand marketing and loyalty, these drivers are also very valuable to Lyft.
 
 # To get this information we labelled each ride with a time of day depending on when the ride was requested. We then summed up the number of rides that occured during rush hours (5-10am and 3-7pm) and once again normalized it.
 
