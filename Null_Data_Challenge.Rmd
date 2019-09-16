@@ -9,17 +9,18 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
 ##Import Datasets
-```{r echo=FALSE, message=FALSE, warning=FALSE}
-library(readr)
-library(tidyverse)
+#library(readr)
+#library(tidyverse)
 # Roger
-ride_ids <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_ids.csv")
-driver_ids <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/driver_ids.csv")
-ride_timestamps <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_timestamps.csv")
+#ride_ids <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_ids.csv")
+#driver_ids <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/driver_ids.csv")
+#ride_timestamps <- read_csv("~/Desktop/Lyft Data Challenge/Lyft Data/ride_timestamps.csv")
 ```
 
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 library(readr)
 library(tidyverse)
 # Edwin
@@ -28,8 +29,8 @@ driver_ids <- read_csv("C:/Users/Edwin/Downloads/driver_ids.csv")
 ride_timestamps <- read_csv("C:/Users/Edwin/Downloads/ride_timestamps.csv")
 ```
 
+```{r include=FALSE}
 ##Revenue for Each Driver
-```{r echo=FALSE}
 ride_ids$revenue <- round(1.75 + (2 + 0.22 * ride_ids$ride_duration/60 + 1.15 * 0.000621371 * ride_ids$ride_distance) * (1 + ride_ids$ride_prime_time/100), digits = 2)
 
 ride_ids$revenue[ride_ids$revenue < 5] <- 5
@@ -41,8 +42,8 @@ ride_ids %>%
   arrange(desc(total_rev))
 ```
 
+```{r message=FALSE, warning=FALSE, include=FALSE}
 # tag rides with time of day, sum up all prime time bonuses for drivers
-```{r echo=FALSE}
 # switch timezone
 #attributes(ride_timestamps$timestamp)$tzone <- "America/Los_Angeles"
 
@@ -81,8 +82,8 @@ colnames(sumprime) <- c("driver_id", "totalprimetime")
 # driver_ids <- inner_join(driver_ids, temp, by="driver_id")
 ```
 
+```{r include=FALSE}
 ##Driver's Lifetime
-```{r echo=FALSE}
 rides <- 
   ride_timestamps %>% 
   group_by(ride_id) %>% 
@@ -102,8 +103,8 @@ driver_lifetime %>% arrange(desc(life_time))
 mean(driver_lifetime$life_time, na.rm = T)
 ```
 
+```{r include=FALSE}
 ##Time Between Rides
-```{r echo=FALSE}
 Driver_timestamps <- left_join(x = ride_timestamps, y = ride_ids, by = "ride_id")
 
 bruhh <- Driver_timestamps %>% 
@@ -113,7 +114,7 @@ bruhh <- Driver_timestamps %>%
 
 #time in minutes
 time_difference <- bruhh %>% select(driver_id, timestamp)
-time_difference$difference = c(NA, round(diff(bruhh2$timestamp)/60))
+time_difference$difference = c(NA, round(diff(bruhh$timestamp)/60))
 time_difference <- time_difference[time_difference$difference >= 0, ]
 
 #Max time difference in hours
@@ -129,8 +130,8 @@ Full_time$Assignment <- Full_time_assign
 
 
 
+```{r include=FALSE}
 ##Big Inner Join
-```{r echo=FALSE}
 all_rides <- inner_join(x = ride_ids, y = driver_ids, by = "driver_id")
 all_rides <- inner_join(x = ride_ids, y = Full_time, by = "driver_id")
 
@@ -155,8 +156,8 @@ Driver_summary %>% arrange(desc(Total_Rev))
 ```
 
 
+```{r include=FALSE}
 # investigate timestamps of outlier drivers
-```{r echo=FALSE}
 # driver id and revenue
 driver_rev <- ride_ids %>% 
   group_by(driver_id) %>% 
@@ -184,8 +185,12 @@ temp2 <- ride_timestamps[which(ride_timestamps$event == 'picked_up_at' | ride_ti
 travel_times <- aggregate(temp2$timestamp, by=list(ride_id=temp2$ride_id), 
                           FUN=function(x) timediff(range(x)[2], range(x)[1]))
 
+temp3 <- ride_timestamps[which(ride_timestamps$event == 'arrived_at' | ride_timestamps$event == 'picked_up_at'),]
+wait_times <- aggregate(temp3$timestamp, by=list(ride_id=temp3$ride_id), 
+                          FUN=function(x) timediff(range(x)[2], range(x)[1]))
 # get times with no revenue
 ride_summary$norider <- (ride_summary$x - travel_times$x)
+ride_summary$wait_time <- wait_times$x
 colnames(ride_summary)[2] <- 'totaltime'
 
 #ride_summary$totaltime <- as.numeric(ride_summary$totaltime)
@@ -194,21 +199,8 @@ ride_summary$percentnorev <- ride_summary$norider / ride_summary$totaltime
 ```
 
 
-```{r echo=FALSE}
-# driver ids with outlier revenue
-driverid_out <- driver_rev$driver_id[which(driver_rev$total_rev %in% boxplot(driver_rev$total_rev)$out)]
-ride_summary[which(ride_summary$driver_id %in% driverid_out),]
-meannorev <- aggregate(ride_summary$percentnorev, by=list(driver_id=ride_summary$driver_id), FUN=mean)
-
-# ride timestamps with outlier driver revenue
-time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driverid_out),]
-sumprime[which(sumprime$driver_id %in% driverid_out),]
-head(sumprime[order(-sumprime$totalprimetime),], 8)
-```
-
-
+```{r message=FALSE, warning=FALSE, include=FALSE}
 ##OLS Regression Analysis
-```{r echo=FALSE}
 library(glmnet)
 which(is.na(Driver_summary), arr.ind=TRUE)
 Driver_summary[425, 3] <- median(Driver_summary[[3]], na.rm = T)
@@ -238,35 +230,51 @@ as.matrix(t(coef(lassofit, s = 0.5)))
 ```
 
 
-```{r}
+```{r message=FALSE, warning=FALSE, echo=FALSE}
 mean(ride_ids$revenue[which(ride_ids$dayinfo=='night')])
 mean(driver_lifetime$life_time, na.rm=T)
 lifetimesummary <- boxplot.stats(as.numeric(driver_lifetime$life_time))
 lifetimesummary
 ```
 
-# A driver's lifetime value would be calculated using a linear combination of projected lifetime revenue, average prime time bonus per ride, and proportion of rides driven during rush hour or late nights. After normalizing each component, we multiply them together to get a lifetime value.
+# Lifetime Value  
 
-# Revenue is often an important indicator of an employee's worth to a company. At the end of the day, an employee's contribution to their company's bottom line determines how important they are to the company, at least financially. To determine a driver's financial value, we found their average daily revenue by totaling the revenue of their rides during their lifetime and dividing by their lifetime before multiplying by the average driver lifetime. This revenue calculation accounts for prime time bonuses as well. 
+## A driver's lifetime value would be calculated using a linear combination of projected lifetime revenue, average prime time bonus per ride, and proportion of rides driven during rush hour or late nights. After normalizing each component, we multiply them together to get a lifetime value.
 
-# However, while revenue is important, it is not all a driver has to offer to Lyft. We believe that a driver who works for Lyft during times of high demand, such as holidays or rush hours, would be of much value to the company. Not only would they bring in more revenue from the prime time bonuses that have taken effect, but they also bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. By allowing Lyft to provide its services to more riders during especially busy, critical times, these drivers have increased worth towards Lyft that cannot be described by revenue alone.
+## Revenue is often an important indicator of an employee's worth to a company. At the end of the day, an employee's contribution to their company's bottom line determines how important they are to the company, at least financially. To determine a driver's financial value, we found their average daily revenue by totaling the revenue of their rides during their lifetime and dividing by their lifetime before multiplying by the average driver lifetime. This revenue calculation accounts for prime time bonuses as well. 
 
-# In order to represent this, we summed up all the prime time bonuses for each driver as an approximate measure of how often they drive during high demands. Larger total prime time bonuses indicate a tendency to work during busy times and lower totals indicate otherwise. We once again normalize this factor.
+## However, while revenue is important, it is not all a driver has to offer to Lyft. We believe that a driver who works for Lyft during times of high demand, such as holidays or rush hours, would be of much value to the company. Not only would they bring in more revenue from the prime time bonuses that have taken effect, but they also bolster Lyft's consistency and dependency during times when people rely on them the most. Moreover, they increase Lyft's ability to contend against competitors when there are more potential riders unfamiliar with the service or are not loyal to a specific one. By allowing Lyft to provide its services to more riders during especially busy, critical times, these drivers have increased worth towards Lyft that cannot be described by revenue alone.
 
-# Another factor we wish to consider is how often a driver works during rush hours. This is somewhat similar to the previously mentioned total prime time, but the number of rides during rush hour or late nights represents a more consistent work schedule. Because riders who hail rides during these times often need to, often due to work, we believe Lyft drivers who work within these hours are not only fulfilling demand but also building customer loyalty. Because many regularly require rides during these times, they tend to stick with a ride hailing company, and drivers who help saturate this market with Lyft options not only capitalize on revenue but also aid in creating loyal, long-term customers for Lyft. Due to their contributions towards brand marketing and loyalty, these drivers are also very valuable to Lyft.
+## In order to represent this, we summed up all the prime time bonuses for each driver as an approximate measure of how often they drive during high demands. Larger total prime time bonuses indicate a tendency to work during busy times and lower totals indicate otherwise. We once again normalize this factor.
 
-# To get this information we labelled each ride with a time of day depending on when the ride was requested. We then summed up the number of rides that occured during rush hours (5-10am and 3-7pm) and once again normalized it.
+## Another factor we wish to consider is how often a driver works during rush hours or at night. This is somewhat similar to the previously mentioned total prime time, but the number of rides during rush hour or late nights represents a more consistent work schedule. Because riders who hail rides during these times often need to, often due to work, we believe Lyft drivers who work within these hours are not only fulfilling demand but also building customer loyalty. Because many regularly require rides during these times, they tend to stick with a ride hailing company, and drivers who help saturate this market with Lyft options not only capitalize on revenue but also aid in creating loyal, long-term customers for Lyft. Due to their contributions towards brand marketing and loyalty, these drivers are also very valuable to Lyft.
+
+## To get this information we labelled each ride with a time of day depending on when the ride was requested. We then summed up the number of rides that occured during rush hours (5-10am and 3-7pm) and once again normalized it.
+
+## Something worth mentioning is our belief that drivers that work full time (or similar hours to a full time employee) are more valuable than a part time driver. A full time driver a more reliable and consistent source of revenue for Lyft, making them more favorable than someone who works according to an erratic schedule. To classify a driver as full or part time, we first grouped the timestamp data by driver id and took the difference between each consecutive time a ride was requested. We then used these differences in times with a k-means algorithm to sort drivers by full or part time. However, we ended up with over 700 full time drivers, which we suspect is not quite accurate. Because of this, we did not include this factor in our final mode, but believed it is worth mentioning due to its part in determining a driver's value.
+
+```{r}
+modelfactors <- Driver_summary[,c("driver_id", "Total_Rev", "Total_prime_time")]
+revmin <- range(modelfactors$Total_Rev)[1]
+revrange <- range(modelfactors$Total_Rev)[2] - revmin
+ptmin <- range(modelfactors$Total_prime_time)[1]
+ptrange <- range(modelfactors$Total_prime_time)[2] - ptmin
+
+modelfactors$Total_Rev <- (modelfactors$Total_Rev - revmin) / revrange
+modelfactors$Total_prime_time <- (modelfactors$Total_prime_time - ptmin) / ptrange
+
+```
 
 
 # Driver Projected Lifetime
 
-# The average projected lifetime of a driver is approximately 55.75 days, or a little under 2 months based on the data given. Furthermore, the minimum lifetime is 1.7 days, the first quartile is 43 days, the median is 58 days, the third quartile is 73 days, and the maximum is 91 days. The distribution of lifetimes is only slightly left skewed. We calculated the lifetime of a driver by subtracting their onboard date from their last recorded ride date. However, because the data was only representative of a 3 month period the projected lifetime in this dataset is likely shorter than the true projected lifetime of a Lyft driver.
+## The average projected lifetime of a driver is approximately 55.75 days, or a little under 2 months based on the data given. Furthermore, the minimum lifetime is 1.7 days, the first quartile is 43 days, the median is 58 days, the third quartile is 73 days, and the maximum is 91 days. The distribution of lifetimes is only slightly left skewed. We calculated the lifetime of a driver by subtracting their onboard date from their last recorded ride date. However, because the data was only representative of a 3 month period the projected lifetime in this dataset is likely shorter than the true projected lifetime of a Lyft driver.
 ```{r message=FALSE, warning=FALSE}
 boxplot(as.numeric(driver_lifetime$life_time), main="Driver Lifetime in Days", ylab="Lifetime")
 ```
 
 
-# As expected, the lifetime of a driver has no relation to the total revenue of a driver. The correlation between the two is 0.52, which can be seen by plotting the lifetime vs the total revenue. This makes sense, as a part-time driver working the same amount of time as a full-time driver will make much less. Thus, we can rule out lifetime as a factor in a driver's lifetime value.
+## As expected, the lifetime of a driver has no relation to the total revenue of a driver. The correlation between the two is 0.52, which can be seen by plotting the lifetime vs the total revenue. This makes sense, as a part-time driver working the same amount of time as a full-time driver will make much less. Thus, we can rule out lifetime as a factor in a driver's lifetime value.
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
 #cor(driver_lifetime$total_rev[-c(425)], as.numeric(driver_lifetime$life_time[-c(425)]))
@@ -275,3 +283,79 @@ boxplot(as.numeric(driver_lifetime$life_time), main="Driver Lifetime in Days", y
 plot(as.numeric(Driver_summary$life_time), Driver_summary$Total_rev, main="Total Revenue vs Lifetime", xlab="Lifetime in Days", ylab="Total Revenue in Dollars")
 #plot(as.numeric(driver_lifetime$totalprimetime[-c(425)]), driver_lifetime$total_rev[-c(425)], main="Total Revenue vs Total Prime Time", xlab="Prime Time", ylab="Total Revenue in Dollars")
 ```
+
+
+# Outlier Drivers
+
+```{r include=FALSE}
+# driver ids with outlier revenue
+driverid_out <- driver_rev$driver_id[which(driver_rev$total_rev %in% boxplot(driver_rev$total_rev)$out)]
+ride_out <- ride_summary[which(ride_summary$driver_id %in% driverid_out),]
+meannorev <- aggregate(ride_summary$percentnorev, by=list(driver_id=ride_summary$driver_id), FUN=mean)
+
+# ride timestamps with outlier driver revenue
+time_out <- ride_timestamps[which(ride_timestamps$driver_id %in% driverid_out),]
+sumprime[which(sumprime$driver_id %in% driverid_out),]
+head(sumprime[order(-sumprime$totalprimetime),], 8)
+```
+
+```{r include=FALSE}
+# avgpercentnorev
+temp <- Driver_summary[order(-Driver_summary$Total_Rev),] 
+driverid_med <- temp$driver_id[(length(temp$driver_id)/2 - 3):(length(temp$driver_id)/2 + 4)]
+ride_med <- ride_summary[which(ride_summary$driver_id %in% driverid_med),]
+time_med <- ride_timestamps[which(ride_timestamps$driver_id %in% driverid_med),]
+
+driverid_min <- temp$driver_id[(length(temp$driver_id) - 7):length(temp$driver_id)]
+ride_min <- ride_summary[which(ride_summary$driver_id %in% driverid_min),]
+time_min <- ride_timestamps[which(ride_timestamps$driver_id %in% driverid_min),]
+```
+
+## There are eight drivers whose total revenue is about three to four times greater than the median total revenue, making $10,000-$12,000 while the median is about $3,000. These drivers are considered outliers, and we will be analyzing them alongside median and lower end drivers to observe how they set themselves so far apart from others. To pick drivers for each group, we calculated the outlier threshold for revenue, and selected all drivers that earned equal to or more than that amount. For median drivers, we ordered the drivers by revenue and picked an equal amount of drivers from the middle, in this case eight. For the lower end drivers we picked the bottom eight.
+
+## We were first interested in the percent of rides that did not earn revenue for each group of drivers, namely the time between the request and passenger pick up. We first calculated for each ride the total ride time between request and drop off and subtracted the ride duration. We divided this by the total ride time to get the propotion of the ride that did not earn revenue. Surprisingly, the distribution of percentages of times with no revenue were not significantly different between the three groups, which is evident from the p-values of 0.155, 0.21, and 0.615 for alpha values of 0.05. 
+```{r echo=FALSE}
+# compare percentnorev
+meannorevall <- data.frame(c(meannorev$x[which(meannorev$driver_id %in% driverid_out)], meannorev$x[which(meannorev$driver_id %in% driverid_med)], meannorev$x[which(meannorev$driver_id %in% driverid_min)]))
+meannorevall$label <- c(rep("Outlier", 8), rep("Median", 8), rep("Lower End", 8))
+colnames(meannorevall) <- c("meannorev", "label")
+
+library(ggplot2)
+ggplot(data=meannorevall, aes(y=meannorev, x=label)) + geom_boxplot() + ggtitle("Mean Percentages of Ride Times With No Revenue") + ylab("Mean Percentage of Time") + xlab("Type of Driver")
+```
+
+
+```{r include=FALSE}
+t.test(meannorev$x[which(meannorev$driver_id %in% driverid_out)], meannorev$x[which(meannorev$driver_id %in% driverid_med)])
+t.test(meannorev$x[which(meannorev$driver_id %in% driverid_out)], meannorev$x[which(meannorev$driver_id %in% driverid_min)])
+t.test(meannorev$x[which(meannorev$driver_id %in% driverid_med)], meannorev$x[which(meannorev$driver_id %in% driverid_min)])
+```
+
+## Looking at the total prime time bonuses, which we previously discussed, it is obvious that the drivers that bring in the most revenue tend to drive during prime time bonuses more often than average drivers. This may be a large factor in their ability to earn more than their peers. 
+
+```{r echo=FALSE}
+# compare total prime time
+totalptall <- data.frame(c(sumprime$totalprimetime[which(sumprime$driver_id %in% driverid_out)], sumprime$totalprimetime[which(sumprime$driver_id %in% driverid_med)], sumprime$totalprimetime[which(sumprime$driver_id %in% driverid_min)]))
+totalptall$label <- c(rep("Outlier", 8), rep("Median", 8), rep("Lower End", 8))
+colnames(totalptall) <- c("totalprimetime", "label")
+
+ggplot(data=totalptall, aes(y=totalprimetime, x=label)) + geom_boxplot() + ggtitle("Total Prime Time Bonus Percentages") + ylab("Total Prime Time (%)") + xlab("Type of Driver")
+```
+
+## We were also interested in how many rides drivers in each group drove, and at what times during the day. As shown by the barplot, outlier drivers had more rides in every category than both median and lower end drivers. It seems another important factor in more overall revenue is the number of rides driven overall, which is obvious. However, it is also notable that outlier drivers had the majority of their rides driven at night (past 7pm). 
+
+```{r echo=FALSE}
+dayinfo_all <- as.data.frame(table(all_rides$dayinfo[which(all_rides$driver_id %in% driverid_out)]))
+dayinfo_all <- rbind(dayinfo_all, as.data.frame(table(all_rides$dayinfo[which(all_rides$driver_id %in% driverid_med)])))
+dayinfo_all <- rbind(dayinfo_all, as.data.frame(table(all_rides$dayinfo[which(all_rides$driver_id %in% driverid_min)])))
+dayinfo_all$label <- c(rep("Outlier", 5), rep("Median", 5), rep("Lower End", 5))
+colnames(dayinfo_all) <- c("dayinfo", "freq", "label")
+
+barplot(rbind(dayinfo_all$freq[which(dayinfo_all$label == "Outlier")], dayinfo_all$freq[which(dayinfo_all$label == "Median")], dayinfo_all$freq[which(dayinfo_all$label == "Lower End")]), beside=T, names.arg=c("Afternoon", "Evening Rush", "Morning", "Morning Rush", "Night"), col=c("blue", "red", "green"), main="Total Number of Rides Per Time of Day Per Driver", xlab="Time of Day", ylab="Number of Rides")
+legend("topleft", legend=c("Outlier", "Median", "Lower End"), fill=c("blue", "red", "green"))
+```
+
+
+# Actionable Recommendations
+
+## Based on our analysis of drivers with outlier revenue, there are several things that Lyft can try in order to boost driver revenue, and therefore profit. Because outlier drivers primarily worked during rush hour and at night, it would be a good idea to focus on these areas. Lyft could emphasize rush hour rides or rides at night in their advertisements and marketing to better take advantage of the high demand for rides during these times. As for the drivers, Lyft could incentivize them to work during these times(assuming Lyft drivers are available) so there is a large enough supply of drivers to meet demand.
